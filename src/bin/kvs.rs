@@ -1,56 +1,46 @@
-use clap::{App, Arg, SubCommand};
+use structopt::StructOpt;
 use std::process;
 
-fn main() {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about("Memory key/value store")
-        .subcommand(
-            SubCommand::with_name("set")
-                .about("set key/value")
-                .arg(
-                    Arg::with_name("KEY")
-                        .value_name("KEY")
-                        .index(1)
-                        .required(true)
-                        .help(" KEY value"),
-                )
-                .arg(
-                    Arg::with_name("VALUE")
-                        .value_name("VALUE")
-                        .index(2)
-                        .required(true)
-                        .help("VALUE value"),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("get")
-                .about("Get value from key")
-                .arg(Arg::with_name("KEY").value_name("KEY").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("rm")
-                .about("remove KEY/VALUE")
-                .arg(Arg::with_name("KEY").value_name("KEY").required(true)),
-        )
-        .get_matches();
+#[derive(StructOpt)]
+#[structopt(about = "kvs subcommands")]
+enum Opt {
+    /// Gets the string value from a given string key
+    Get(Key),
+    /// Sets a key/value string pair
+    Set(Pair),
+    /// Removes a given key
+    Rm(Key),
+}
 
-    match matches.subcommand() {
-        ("get", Some(_m)) => {
+#[derive(Debug)]
+#[derive(StructOpt)]
+struct Key {
+    #[structopt(name = "KEY")]
+    key: String,
+}
+
+#[derive(Debug)]
+#[derive(StructOpt)]
+struct Pair {
+    #[structopt(name = "KEY")]
+    key: String,
+    #[structopt(name = "VALUE")]
+    value: String,
+}
+
+fn main() {
+    let opt = Opt::from_args();
+    match opt {
+        Opt::Get(_k) => {
             eprintln!("unimplemented");
             process::exit(1);
-        }
-        ("set", Some(_m)) => {
+        },
+        Opt::Set(_p) => {
             eprintln!("unimplemented");
             process::exit(1);
-        }
-        ("rm", Some(_m)) => {
+        },
+        Opt::Rm(_k) => {
             eprintln!("unimplemented");
-            process::exit(1);
-        }
-        _ => {
-            println!("unreachable");
             process::exit(1);
         }
     }

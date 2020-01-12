@@ -39,7 +39,7 @@ impl KvStore {
         self.kv.get(key.as_str()).cloned()
     }
 
-    /// Remove a given key.
+    /// Removes a given key.
     pub fn remove(&mut self, key: String) {
         self.kv.remove(key.as_str());
     }
