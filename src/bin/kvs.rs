@@ -1,8 +1,7 @@
-use structopt::StructOpt;
-use std::process;
-use kvs::{Result, KvStore, KvsError};
+use kvs::{KvStore, KvsError, Result};
 use std::env::current_dir;
-use std::process::exit;
+use std::process;
+use structopt::StructOpt;
 
 #[derive(StructOpt)]
 #[structopt(about = "kvs subcommands")]
@@ -15,15 +14,13 @@ enum Opt {
     Rm(Key),
 }
 
-#[derive(Debug)]
-#[derive(StructOpt)]
+#[derive(Debug, StructOpt)]
 struct Key {
     #[structopt(name = "KEY")]
     key: String,
 }
 
-#[derive(Debug)]
-#[derive(StructOpt)]
+#[derive(Debug, StructOpt)]
 struct Pair {
     #[structopt(name = "KEY")]
     key: String,
@@ -41,20 +38,20 @@ fn main() -> Result<()> {
             } else {
                 println!("Key not found");
             }
-        },
+        }
         Opt::Set(_p) => {
             let mut store = KvStore::open(current_dir()?)?;
-            store.set(_p.key, _p.value);
-        },
+            store.set(_p.key, _p.value)?;
+        }
         Opt::Rm(_k) => {
             let mut store = KvStore::open(current_dir()?)?;
             match store.remove(_k.key) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(KvsError::KeyNotFound) => {
                     println!("Key not found");
-                    exit(1);
+                    process::exit(1);
                 }
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
     };

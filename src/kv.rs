@@ -1,21 +1,20 @@
 #![deny(missing_docs)]
 //! A simple key/value store.
 
+use crate::{KvsError, Result};
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::collections::BTreeMap;
-use std::path::{PathBuf, Path};
+use std::ffi::OsStr;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::prelude::*;
-use std::io::{BufWriter, BufReader, SeekFrom, Error};
-use serde_json;
-use serde::{Serialize, Deserialize};
-use crate::{Result, KvsError};
-use std::ffi::OsStr;
-use std::panic::resume_unwind;
+use std::io::{BufReader, BufWriter, SeekFrom};
+use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Deserialize, Debug)]
-enum  Command {
+enum Command {
     Set(String, String),
     Remove(String),
 }
@@ -52,11 +51,13 @@ impl KvStore {
         fs::create_dir_all(&path.as_path())?;
         let last_gen = last_gen(&path)?;
         let path = path.join(format!("{}.log", last_gen));
-        let mut writer = BufWriterWithOps::new(OpenOptions::new()
-                                            .create(true)
-                                            .write(true)
-                                            .append(true)
-                                            .open(&path)?)?;
+        let writer = BufWriterWithOps::new(
+            OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(true)
+                .open(&path)?,
+        )?;
         let reader = BufReaderWithOps::new(File::open(&path)?)?;
 
         let mut kvs = KvStore {
@@ -74,7 +75,7 @@ impl KvStore {
     /// Sets a value from a string key to a string.
     ///
     /// If the key already exists, the value will be overwritten.
-    pub fn set(&mut self, key: String, val: String) -> Result<()>{
+    pub fn set(&mut self, key: String, val: String) -> Result<()> {
         assert!(self.load);
 
         let ops = self.writer.offset;
@@ -83,8 +84,11 @@ impl KvStore {
         self.writer.flush()?;
 
         let new_ops = self.writer.offset;
-        let cmd_ops = CommandOps {offset: ops, len: new_ops - ops};
-        if let Command::Set(key, value) = cmd_set {
+        let cmd_ops = CommandOps {
+            offset: ops,
+            len: new_ops - ops,
+        };
+        if let Command::Set(key, ..) = cmd_set {
             self.index.insert(key, cmd_ops);
         }
 
@@ -98,18 +102,16 @@ impl KvStore {
         assert!(self.load);
 
         match self.index.get(&key) {
-            None => {
-                Ok(None)
-            },
+            None => Ok(None),
             Some(ops) => {
-                self.reader.seek(SeekFrom::Start(ops.offset));
+                self.reader.seek(SeekFrom::Start(ops.offset))?;
                 let take = (&mut self.reader).take(ops.len);
-                if let Command::Set(key, value) =  serde_json::from_reader(take)? {
+                if let Command::Set(.., value) = serde_json::from_reader(take)? {
                     Ok(Some(value))
                 } else {
                     Err(KvsError::UnexpectedCommandType)
                 }
-            },
+            }
         }
     }
 
@@ -118,14 +120,12 @@ impl KvStore {
         assert!(self.load);
 
         match self.index.get(&key) {
-            None => {
-                Err(KvsError::KeyNotFound)
-            },
-            Some(ops) => {
-                let old_comm = self.index.remove(&key);
+            None => Err(KvsError::KeyNotFound),
+            Some(_ops) => {
+                let old_cmd = self.index.remove(&key);
 
-                let command_rm = Command::Remove(key.clone());
-                serde_json::to_writer(&mut self.writer, &command_rm)?;
+                let cmd_rm = Command::Remove(key.clone());
+                serde_json::to_writer(&mut self.writer, &cmd_rm)?;
                 self.writer.flush()?;
 
                 Ok(())
@@ -136,14 +136,20 @@ impl KvStore {
     /// load index to memory map
     pub fn load(&mut self) -> Result<()> {
         let mut offset: u64 = self.reader.seek(SeekFrom::Start(0))?;
-        let mut stream = serde_json::Deserializer::from_reader(&mut self.reader)
-            .into_iter::<Command>();
+        let mut stream =
+            serde_json::Deserializer::from_reader(&mut self.reader).into_iter::<Command>();
         while let Some(cmd) = stream.next() {
             let new_ops = stream.byte_offset() as u64;
             match cmd? {
                 Command::Set(key, ..) => {
-                    self.index.insert(key, CommandOps{offset, len: new_ops-offset});
-                },
+                    self.index.insert(
+                        key,
+                        CommandOps {
+                            offset,
+                            len: new_ops - offset,
+                        },
+                    );
+                }
                 Command::Remove(key) => {
                     self.index.remove(&key);
                 }
@@ -152,7 +158,7 @@ impl KvStore {
         }
 
         self.writer.offset = offset;
-        self.writer.seek(SeekFrom::Start(offset));
+        self.writer.seek(SeekFrom::Start(offset))?;
         Ok(())
     }
 }
@@ -201,11 +207,9 @@ pub struct BufReaderWithOps<R: Read + Seek> {
     offset: u64,
 }
 
-
 impl<R: Read + Seek> BufReaderWithOps<R> {
-
     /// Create BufReaderWithOps
-    pub fn new(mut inner: R) -> Result<Self>{
+    pub fn new(mut inner: R) -> Result<Self> {
         let ops = inner.seek(SeekFrom::Start(0))?;
         Ok(BufReaderWithOps {
             reader: BufReader::new(inner),
@@ -236,19 +240,15 @@ const INIT_GEN: u64 = 1;
 /// This function finds the latest valid generation number.
 pub fn last_gen(path: impl AsRef<Path>) -> Result<u64> {
     let gen: Option<u64> = fs::read_dir(path)?
-        .flat_map(|res| -> Result<PathBuf> { Ok(res?.path()) } )
-        .filter(|path| {
-            path.is_file()
-            && path.extension() == Some("log".as_ref())
-        })
+        .flat_map(|res| -> Result<PathBuf> { Ok(res?.path()) })
+        .filter(|path| path.is_file() && path.extension() == Some("log".as_ref()))
         .flat_map(|path| {
             path.file_name()
                 .and_then(OsStr::to_str)
                 .map(str::parse::<u64>)
         })
         .flatten()
-        .max()
-        ;
+        .max();
 
     Ok(gen.unwrap_or(INIT_GEN))
 }

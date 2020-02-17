@@ -1,6 +1,6 @@
-use std::io;
 use failure::Fail;
 use serde_json;
+use std::io;
 
 #[derive(Fail, Debug)]
 pub enum KvsError {
@@ -30,28 +30,3 @@ impl From<serde_json::Error> for KvsError {
 }
 
 pub type Result<T> = std::result::Result<T, KvsError>;
-
-mod tests{
-    use std::path::PathBuf;
-    use failure::Error;
-    use std::io::Seek;
-
-    #[test]
-    pub fn test_failure() {
-        let r = read_toolchains(PathBuf::new());
-        println!("{:?}", r);
-    }
-
-    pub fn read_toolchains(path: PathBuf) -> Result<(), Error>
-    {
-        use std::fs::File;
-        use std::io::Read;
-        use std::io::BufReader;;
-
-        let mut string = String::new();
-        let f= File::open(path)?;
-        let br = BufReader::new(f);
-
-        Ok(())
-    }
-}
