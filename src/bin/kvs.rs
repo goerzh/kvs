@@ -1,5 +1,8 @@
 use structopt::StructOpt;
 use std::process;
+use kvs::{Result, KvStore, KvsError};
+use std::env::current_dir;
+use std::process::exit;
 
 #[derive(StructOpt)]
 #[structopt(about = "kvs subcommands")]
@@ -28,20 +31,33 @@ struct Pair {
     value: String,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let opt = Opt::from_args();
     match opt {
         Opt::Get(_k) => {
-            eprintln!("unimplemented");
-            process::exit(1);
+            let mut store = KvStore::open(current_dir()?)?;
+            if let Some(value) = store.get(_k.key)? {
+                println!("{}", value);
+            } else {
+                println!("Key not found");
+            }
         },
         Opt::Set(_p) => {
-            eprintln!("unimplemented");
-            process::exit(1);
+            let mut store = KvStore::open(current_dir()?)?;
+            store.set(_p.key, _p.value);
         },
         Opt::Rm(_k) => {
-            eprintln!("unimplemented");
-            process::exit(1);
+            let mut store = KvStore::open(current_dir()?)?;
+            match store.remove(_k.key) {
+                Ok(_) => {},
+                Err(KvsError::KeyNotFound) => {
+                    println!("Key not found");
+                    exit(1);
+                }
+                Err(e) => return Err(e)
+            }
         }
-    }
+    };
+
+    Ok(())
 }
