@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 //! A simple key/value store.
 
 use crate::{KvsError, Result};
@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 
 #[derive(Serialize, Deserialize, Debug)]
-enum Command {
+pub enum Command {
     Set(String, String),
     Remove(String),
 }
@@ -37,6 +37,12 @@ impl From<(u64, Range<u64>)> for CommandOps {
             len: range.end - range.start,
         }
     }
+}
+
+pub trait KvsEngine {
+    fn set(&mut self, key: String, value: String) -> Result<()>;
+    fn get(&mut self, key: String) -> Result<Option<String>>;
+    fn remove(&mut self, key: String) -> Result<()>;
 }
 
 /// `KvStore` stores key/value pairs in Memory, not in disk.

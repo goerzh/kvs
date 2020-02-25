@@ -15,6 +15,11 @@ pub enum KvsError {
     /// UnexpectedCommandType indicated a corrupted log or a program bug.
     #[fail(display = "Unexpected command type")]
     UnexpectedCommandType,
+    /// UnexpectedResponseType indicated a invalid response.
+    #[fail(display = "Unexpected response type")]
+    UnexpectedResponseType,
+    #[fail(display = "{}", _0)]
+    StringErr(String),
 }
 
 impl From<io::Error> for KvsError {
@@ -26,6 +31,12 @@ impl From<io::Error> for KvsError {
 impl From<serde_json::Error> for KvsError {
     fn from(f: serde_json::Error) -> Self {
         KvsError::Serde(f)
+    }
+}
+
+impl From<String> for KvsError {
+    fn from(f: String) -> Self {
+        KvsError::StringErr(f)
     }
 }
 
