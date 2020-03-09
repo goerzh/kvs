@@ -1,32 +1,28 @@
 use crate::common::{Request, Response};
 use crate::{Command, KvStore, KvsError, Result};
 use serde_json;
+use slog::Logger;
 use std::io::{BufReader, BufWriter, Write};
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 
-macro_rules! send_resp {
-    ($resp:expr, $writer:expr) => {{
-        serde_json::to_writer(&mut $writer, &$resp)?;
-        $writer.flush()?;
-    }};
-}
-
 pub struct Connection {
     db: Arc<Mutex<KvStore>>,
     stream: TcpStream,
+    log: Logger,
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream, db: Arc<Mutex<KvStore>>) -> Self {
-        Connection { db, stream }
+    pub fn new(stream: TcpStream, db: Arc<Mutex<KvStore>>, log: Logger) -> Self {
+        let log = log.new(o!("peer-address"=>stream.peer_addr().unwrap()));
+        Connection { db, stream, log }
     }
 
     pub fn run(&mut self) {
         match self.serve() {
             Ok(_) => {}
             Err(e) => {
-                println!("serve error: {}", e);
+                error!(self.log, "Error on serving client: {}", e);
             }
         }
     }
@@ -36,8 +32,18 @@ impl Connection {
         let mut writer = BufWriter::new(&self.stream);
         let req_reader = serde_json::Deserializer::from_reader(reader).into_iter::<Request>();
 
+        macro_rules! send_resp {
+            ($resp:expr, $writer:expr) => {{
+                let resp = $resp;
+                serde_json::to_writer(&mut $writer, &resp)?;
+                $writer.flush()?;
+                debug!(self.log, "Sent response: {:?}", resp);
+            }};
+        }
+
         for req in req_reader {
             let req = req?;
+            debug!(self.log, "Receive request: {:?}", req);
             match req {
                 Request::Set { key, value } => {
                     let mut lock = self.db.lock().unwrap();

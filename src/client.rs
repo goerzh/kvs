@@ -29,7 +29,7 @@ impl Client {
         let request = Request::Set { key, value };
 
         serde_json::to_writer(&mut self.writer, &request)?;
-        // self.writer.flush()?;
+        self.writer.flush()?;
         let resp = Response::deserialize(&mut self.reader)?;
         match resp {
             Response::Ok(_) => Ok(()),
@@ -54,6 +54,10 @@ impl Client {
         serde_json::to_writer(&mut self.writer, &request)?;
         self.writer.flush()?;
 
-        Ok(())
+        let response = Response::deserialize(&mut self.reader)?;
+        match response {
+            Response::Ok(_) => Ok(()),
+            Response::Err(e) => Err(e.into()),
+        }
     }
 }

@@ -1,14 +1,31 @@
+use slog::Logger;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+arg_enum! {
+    #[allow(non_camel_case_types)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+    pub enum Engine {
+        kvs,
+        sled
+    }
+}
+
 pub struct Config {
-    addr: SocketAddr,
-    path: PathBuf,
+    pub addr: SocketAddr,
+    pub path: PathBuf,
+    pub engine: Engine,
+    pub log: Logger,
 }
 
 impl Config {
-    pub fn new(addr: SocketAddr, path: PathBuf) -> Self {
-        Config { addr, path }
+    pub fn new(addr: SocketAddr, path: PathBuf, engine: Engine, log: Logger) -> Self {
+        Config {
+            addr,
+            path,
+            engine,
+            log,
+        }
     }
 
     pub fn address(&self) -> SocketAddr {

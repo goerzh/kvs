@@ -59,7 +59,10 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Command::Remove { key } => {}
+        Command::Remove { key } => {
+            let mut client = Client::connect(opt.addr)?;
+            client.remove(key)?;
+        }
     }
 
     Ok(())
